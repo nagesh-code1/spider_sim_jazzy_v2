@@ -1,0 +1,162 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="spider">
+
+  <xacro:arg name="record" default="false"/>
+  <xacro:arg name="record_dir" default="/tmp/spider_rec"/>
+
+  <xacro:property name="L1" value="0.045"/>
+  <xacro:property name="L2" value="0.095"/>
+  <xacro:property name="L3" value="0.125"/>
+  <xacro:property name="A1" value="0.14"/>
+  <xacro:property name="A2" value="0.14"/>
+
+  <material name="body"><color rgba="0.95 0.50 0.10 1"/></material>
+  <material name="dark"><color rgba="0.12 0.12 0.14 1"/></material>
+  <material name="leg"><color rgba="0.55 0.55 0.60 1"/></material>
+
+  <link name="base_link">
+    <visual><geometry><box size="0.22 0.16 0.05"/></geometry><material name="body"/></visual>
+    <collision><geometry><box size="0.22 0.16 0.05"/></geometry></collision>
+    <inertial><mass value="1.0"/>
+      <inertia ixx="0.0028" ixy="0" ixz="0" iyy="0.0041" iyz="0" izz="0.0053"/>
+    </inertial>
+  </link>
+
+  <xacro:macro name="segment" params="name length mass material collision:=true">
+    <link name="${name}">
+      <visual><origin xyz="${length/2.0} 0 0"/>
+        <geometry><box size="${length} 0.025 0.025"/></geometry><material name="${material}"/>
+      </visual>
+      <xacro:if value="${collision}">
+        <collision><origin xyz="${length/2.0} 0 0"/>
+          <geometry><box size="${length} 0.025 0.025"/></geometry>
+        </collision>
+      </xacro:if>
+      <inertial><origin xyz="${length/2.0} 0 0"/><mass value="${mass}"/>
+        <inertia ixx="0.00001" ixy="0" ixz="0"
+          iyy="${mass*length*length/12.0}" iyz="0" izz="${mass*length*length/12.0}"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="leg" params="name x y yaw">
+    <xacro:segment name="${name}_coxa" length="${L1}" mass="0.06" material="dark" collision="false"/>
+    <xacro:segment name="${name}_femur" length="${L2}" mass="0.10" material="body" collision="false"/>
+    <xacro:segment name="${name}_tibia" length="${L3}" mass="0.10" material="leg" collision="true"/>
+    <link name="${name}_foot">
+      <visual><geometry><sphere radius="0.015"/></geometry><material name="dark"/></visual>
+      <collision><geometry><sphere radius="0.015"/></geometry></collision>
+      <inertial><mass value="0.02"/>
+        <inertia ixx="2e-6" ixy="0" ixz="0" iyy="2e-6" iyz="0" izz="2e-6"/>
+      </inertial>
+    </link>
+    <joint name="${name}_coxa_joint" type="revolute">
+      <parent link="base_link"/><child link="${name}_coxa"/><origin xyz="${x} ${y} 0" rpy="0 0 ${yaw}"/>
+      <axis xyz="0 0 1"/><limit lower="-0.8" upper="0.8" effort="12" velocity="5"/>
+    </joint>
+    <joint name="${name}_femur_joint" type="revolute">
+      <parent link="${name}_coxa"/><child link="${name}_femur"/><origin xyz="${L1} 0 0"/>
+      <axis xyz="0 1 0"/><limit lower="-1.4" upper="1.4" effort="12" velocity="5"/>
+    </joint>
+    <joint name="${name}_tibia_joint" type="revolute">
+      <parent link="${name}_femur"/><child link="${name}_tibia"/><origin xyz="${L2} 0 0"/>
+      <axis xyz="0 1 0"/><limit lower="0.05" upper="2.6" effort="12" velocity="5"/>
+    </joint>
+    <joint name="${name}_foot_joint" type="fixed">
+      <parent link="${name}_tibia"/><child link="${name}_foot"/><origin xyz="${L3} 0 0"/>
+    </joint>
+    <gazebo reference="${name}_foot">
+      <collision><surface><friction><ode><mu>1.2</mu><mu2>1.2</mu2></ode></friction></surface></collision>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- FIX: yaw is now applied to the hip joint, so legs splay out like a spider -->
+  <xacro:leg name="fl" x="0.11" y="0.07" yaw="0.785"/>
+  <xacro:leg name="fr" x="0.11" y="-0.07" yaw="-0.785"/>
+  <xacro:leg name="rl" x="-0.11" y="0.07" yaw="2.356"/>
+  <xacro:leg name="rr" x="-0.11" y="-0.07" yaw="-2.356"/>
+
+  <!-- 3-DOF arm: base yaw, shoulder pitch, elbow pitch -->
+  <link name="arm_base">
+    <visual><geometry><cylinder radius="0.035" length="0.05"/></geometry><material name="dark"/></visual>
+    <collision><geometry><cylinder radius="0.035" length="0.05"/></geometry></collision>
+    <inertial><mass value="0.08"/><inertia ixx="3e-5" ixy="0" ixz="0" iyy="3e-5" iyz="0" izz="5e-5"/></inertial>
+  </link>
+  <joint name="arm_base_joint" type="revolute">
+    <parent link="base_link"/><child link="arm_base"/><origin xyz="0.05 0 0.05"/>
+    <axis xyz="0 0 1"/><limit lower="-3.14" upper="3.14" effort="10" velocity="3"/>
+  </joint>
+
+  <xacro:segment name="arm_upper" length="${A1}" mass="0.08" material="body" collision="false"/>
+  <joint name="arm_shoulder_joint" type="revolute">
+    <parent link="arm_base"/><child link="arm_upper"/><origin xyz="0 0 0.025"/>
+    <axis xyz="0 1 0"/><limit lower="-1.5" upper="1.5" effort="10" velocity="3"/>
+  </joint>
+
+  <xacro:segment name="arm_fore" length="${A2}" mass="0.06" material="leg" collision="false"/>
+  <joint name="arm_elbow_joint" type="revolute">
+    <parent link="arm_upper"/><child link="arm_fore"/><origin xyz="${A1} 0 0"/>
+    <axis xyz="0 1 0"/><limit lower="0.05" upper="2.8" effort="10" velocity="3"/>
+  </joint>
+
+  <link name="gripper_link">
+    <visual><geometry><sphere radius="0.018"/></geometry><material name="dark"/></visual>
+    <collision><geometry><sphere radius="0.018"/></geometry></collision>
+    <inertial><mass value="0.02"/><inertia ixx="2e-6" ixy="0" ixz="0" iyy="2e-6" iyz="0" izz="2e-6"/></inertial>
+  </link>
+  <joint name="gripper_joint" type="fixed">
+    <parent link="arm_fore"/><child link="gripper_link"/><origin xyz="${A2} 0 0"/>
+  </joint>
+
+  <link name="lidar_link">
+    <visual><geometry><cylinder radius="0.025" length="0.035"/></geometry><material name="dark"/></visual>
+    <inertial><mass value="0.03"/><inertia ixx="5e-6" ixy="0" ixz="0" iyy="5e-6" iyz="0" izz="5e-6"/></inertial>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/><child link="lidar_link"/><origin xyz="0 0 0.055"/>
+  </joint>
+
+  <!-- chase camera, only saves frames when launched with record:=true -->
+  <link name="chase_cam_link">
+    <inertial><mass value="0.001"/><inertia ixx="1e-7" ixy="0" ixz="0" iyy="1e-7" iyz="0" izz="1e-7"/></inertial>
+  </link>
+  <joint name="chase_cam_joint" type="fixed">
+    <parent link="base_link"/><child link="chase_cam_link"/>
+    <origin xyz="-0.70 -0.45 0.40" rpy="0 0.45 0.55"/>
+  </joint>
+  <gazebo reference="chase_cam_link">
+    <sensor name="chase_cam" type="camera">
+      <always_on>true</always_on>
+      <update_rate>25</update_rate>
+      <topic>chase_cam</topic>
+      <camera>
+        <horizontal_fov>1.1</horizontal_fov>
+        <image><width>640</width><height>360</height><format>R8G8B8</format></image>
+        <clip><near>0.05</near><far>30</far></clip>
+        <save enabled="$(arg record)"><path>$(arg record_dir)/chase</path></save>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <ros2_control name="GazeboSystem" type="system">
+    <hardware><plugin>gz_ros2_control/GazeboSimSystem</plugin></hardware>
+    <xacro:macro name="ctrl_joint" params="n">
+      <joint name="${n}">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </xacro:macro>
+    <xacro:ctrl_joint n="fl_coxa_joint"/><xacro:ctrl_joint n="fl_femur_joint"/><xacro:ctrl_joint n="fl_tibia_joint"/>
+    <xacro:ctrl_joint n="fr_coxa_joint"/><xacro:ctrl_joint n="fr_femur_joint"/><xacro:ctrl_joint n="fr_tibia_joint"/>
+    <xacro:ctrl_joint n="rl_coxa_joint"/><xacro:ctrl_joint n="rl_femur_joint"/><xacro:ctrl_joint n="rl_tibia_joint"/>
+    <xacro:ctrl_joint n="rr_coxa_joint"/><xacro:ctrl_joint n="rr_femur_joint"/><xacro:ctrl_joint n="rr_tibia_joint"/>
+    <xacro:ctrl_joint n="arm_base_joint"/><xacro:ctrl_joint n="arm_shoulder_joint"/><xacro:ctrl_joint n="arm_elbow_joint"/>
+  </ros2_control>
+
+  <gazebo>
+    <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find spider_sim)/config/controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+</robot>

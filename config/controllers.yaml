@@ -1,0 +1,35 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    use_sim_time: true
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    leg_controller:
+      type: forward_command_controller/ForwardCommandController
+    arm_controller:
+      type: forward_command_controller/ForwardCommandController
+
+leg_controller:
+  ros__parameters:
+    joints:
+      - fl_coxa_joint
+      - fl_femur_joint
+      - fl_tibia_joint
+      - fr_coxa_joint
+      - fr_femur_joint
+      - fr_tibia_joint
+      - rl_coxa_joint
+      - rl_femur_joint
+      - rl_tibia_joint
+      - rr_coxa_joint
+      - rr_femur_joint
+      - rr_tibia_joint
+    interface_name: position
+
+arm_controller:
+  ros__parameters:
+    joints:
+      - arm_base_joint
+      - arm_shoulder_joint
+      - arm_elbow_joint
+    interface_name: position
